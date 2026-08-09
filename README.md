@@ -1,5 +1,7 @@
 # ThermoLit-Surveyor: Literature Survey Agent for Materials Science
 
+**English** | [中文文档](README_ZH.md)
+
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-green.svg)](https://www.python.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-v1.2.10-orange.svg)](https://github.com/langchain-ai/langgraph)
@@ -35,7 +37,9 @@
 ├── test_agent.py                       # Automated test suite & data structure auditor
 ├── requirements.txt                    # Dependency lockfile
 ├── .env.example                        # Environment variables template
-└── README.md                           # Project documentation
+├── README.md                           # English main documentation
+├── README_ZH.md                        # Chinese documentation
+└── LICENSE                             # Apache-2.0 open-source license
 ```
 
 ---
@@ -47,8 +51,8 @@
 Ensure Python 3.11+ is installed, then clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/your-username/ThermoLit-Surveyor.git
-cd ThermoLit-Surveyor/文献调研Agent
+git clone https://github.com/0G-Bhqc/ThermoLit-Surveyor.git
+cd ThermoLit-Surveyor
 pip install -r requirements.txt
 ```
 
