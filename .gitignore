@@ -1,0 +1,20 @@
+# Environment & Credentials
+.env
+*.env
+secrets.py
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Output Reports & Local Log Files
+*.log
+*.tmp
+*.docx
