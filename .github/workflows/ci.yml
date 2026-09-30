@@ -25,11 +25,11 @@ jobs:
       - name: Offline test suite (no API keys needed)
         run: python -m unittest discover -s tests -v
 
-  # 真实 API 冒烟测试:仅在配置了 secrets 时运行,失败不阻塞 PR
+  # 真实 API 冒烟测试:仅当仓库配置了 SCIVERSE_TOKEN secret 时真正执行,
+  # 未配置时该步骤显式跳过(job 本身恒为绿)
   integration:
     runs-on: ubuntu-latest
     needs: test
-    if: ${{ secrets.SCIVERSE_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -39,4 +39,10 @@ jobs:
       - name: Sciverse API smoke test
         env:
           SCIVERSE_TOKEN: ${{ secrets.SCIVERSE_TOKEN }}
+        if: ${{ env.SCIVERSE_TOKEN != '' }}
         run: python -m unittest tests.test_graph_offline.TestSciverseIntegration -v
+      - name: Skipped notice
+        if: ${{ env.SCIVERSE_TOKEN == '' }}
+        env:
+          SCIVERSE_TOKEN: ${{ secrets.SCIVERSE_TOKEN }}
+        run: echo "SCIVERSE_TOKEN 未配置,跳过真实 API 冒烟测试"
