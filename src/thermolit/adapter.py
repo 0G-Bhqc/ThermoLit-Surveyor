@@ -27,6 +27,20 @@ except ImportError:  # pragma: no cover
 _CROSSREF_API = "https://api.crossref.org/works"
 _TITLE_SIM_THRESHOLD = 0.60
 
+# 数值密度评分:命中"数字+输运单位"或 zT 字样的段落更可能产出可解析参数
+_NUMERIC_DENSITY_RE = re.compile(
+    r"(\d+\.?\d*\s*(?:[eE×x]\s*10)?\^?\s*[-+]?\d*\s*(?:µ|μ|u|m|k|c)?\s*"
+    r"(?:V/K|V K-1|S/cm|S m-1|S/m|W/mK|W m-1 K-1|W/m K|mW/cm|W/cm|µΩ|μΩ|uΩ|mΩ|Ω\s*·?\s*cm"
+    r"|ohm\s*·?\s*cm|cm-3|cm\^?-?3|cm2/Vs|cm\^?2\s*/\s*Vs))"
+    r"|(?:zT|ZT|figure of merit|Seebeck coefficient|electrical conductivity|"
+    r"thermal conductivity|carrier concentration)",
+    re.I)
+
+
+def numeric_density_score(text: str) -> int:
+    """段落"数值密度":含多少处 数字+输运单位 / 参数字样。用于检索预筛。"""
+    return len(_NUMERIC_DENSITY_RE.findall(text or ""))
+
 
 def _norm_title(title: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", str(title).lower()).strip()
@@ -129,11 +143,15 @@ class SciverseAdapter:
             if cached is not None:
                 return cached
 
+        # 数值密度预筛(fetch-and-rank):多取一倍候选,数值密集段优先,
+        # 提升每条记录产出可解析参数的概率(真实校准:综述性段落占比过高)
+        fetch_k = max(top_k * 2, top_k + 2)
+
         # 指数退避重试(async 版):单次失败不放弃
         last_exc: Exception | None = None
         for attempt in range(3):
             try:
-                result = self.client.semantic_search(query=query, top_k=top_k)
+                result = self.client.semantic_search(query=query, top_k=fetch_k)
                 if asyncio.iscoroutine(result):
                     result = await result  # async client(真实 sciverse 0.13.x)
                 last_exc = None
@@ -150,27 +168,36 @@ class SciverseAdapter:
         if hits is None and isinstance(res, dict):
             hits = res.get("hits", [])
 
-        papers: List[Dict[str, Any]] = []
+        # 先归一化全部候选(含 API 相关性分),再按(数值密度, 相关性)排序截取
+        candidates: List[Dict[str, Any]] = []
         for hit in hits or []:
             chunk = str(_get(hit, "chunk", "") or "")
             abstract = str(_get(hit, "abstract", "") or "")
             text = f"Chunk: {chunk}\nAbstract: {abstract}".strip()
             if not text:
                 continue
-            title = str(_get(hit, "title", "Sciverse Hit") or "Sciverse Hit")
-            doi = str(_get(hit, "doi", "N/A") or "N/A")
-            if doi in ("N/A", "", "none", "None"):
-                # 真实命中无 DOI 字段:Crossref 标题解析补齐证据锚点(失败保留 N/A)
-                resolved = resolve_doi_by_title(title)
-                doi = resolved or "N/A"
-            papers.append({
-                "title": title,
+            candidates.append({
+                "title": str(_get(hit, "title", "Sciverse Hit") or "Sciverse Hit"),
                 "text": text,
-                "doi": doi,
+                "doi": str(_get(hit, "doi", "N/A") or "N/A"),
                 "venue": str(_get(hit, "publication_venue_name_unified", "") or ""),
                 "year": _get(hit, "publication_published_year", ""),
                 "query_source": query,
+                "_relevance": float(_get(hit, "score", 0) or 0),
+                "_density": numeric_density_score(text),
             })
+        candidates.sort(key=lambda c: (c["_density"], c["_relevance"]), reverse=True)
+        kept = candidates[:top_k]
+
+        # Crossref 标题→DOI 解析只对保留命中所做(节省调用量)
+        papers: List[Dict[str, Any]] = []
+        for c in kept:
+            doi = c["doi"]
+            if doi in ("N/A", "", "none", "None"):
+                doi = resolve_doi_by_title(c["title"]) or "N/A"
+            c.pop("_relevance"), c.pop("_density")
+            c["doi"] = doi
+            papers.append(c)
         if cache is not None:
             cache.set("search", cache_payload, papers)
         return papers

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "thermolit-surveyor"
-version = "0.6.0"
+version = "0.6.1"
 description = "Gap-driven, physics-constrained research-loop agent framework (LangGraph + Sciverse): survey -> structured falsifiable hypotheses -> experiment design -> deterministic result verification. Pluggable domain profiles, first: thermoelectric transport"
 readme = "README.md"
 requires-python = ">=3.11"

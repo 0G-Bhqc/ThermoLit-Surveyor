@@ -327,7 +327,11 @@ Physics consistency flags:
 {chr(10).join(flags_summary) or "(none)"}
 
 Generate exactly {n} targeted academic search queries in English to fill the most critical gaps.
-Each query must mention the material system and a specific measurement/parameter.
+Each query MUST mention the material system AND a specific parameter AND a measurement keyword,
+targeting papers that REPORT NUMBERS (reviews and application papers are useless as evidence).
+- good: "PbTe Seebeck coefficient electrical conductivity measured 773 K"
+- good: "Bi2Te3 lattice thermal conductivity Wiedemann-Franz decoupling value"
+- bad: "PbTe thermoelectric review applications" (review, no numbers)
 Return ONLY a valid JSON array of {n} strings."""
 
         queries = None

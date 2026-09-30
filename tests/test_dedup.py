@@ -38,5 +38,37 @@ class TestProfileDefaults(unittest.TestCase):
         self.assertIn("S = -180 uV/K", prompt)
 
 
+class TestNumericDensityRank(unittest.TestCase):
+    """检索预筛:数值密集段优先(fetch-and-rank)。"""
+
+    DENSE = ("The sample shows zT = 0.9 @ 350 K with S = -180 uV/K, "
+             "sigma = 1200 S/cm and kappa = 1.3 W/mK measured at 300 K.")
+    REVIEW = ("Thermoelectric materials have attracted attention for energy "
+              "harvesting applications in recent decades.")
+
+    def test_density_scores(self):
+        from thermolit.adapter import numeric_density_score
+        self.assertGreater(numeric_density_score(self.DENSE), 3)
+        self.assertEqual(numeric_density_score(self.REVIEW), 0)
+        self.assertEqual(numeric_density_score(""), 0)
+
+    def test_fetch_and_rank_prefers_numeric(self):
+        from unittest.mock import MagicMock
+
+        from thermolit.adapter import SciverseAdapter
+
+        ad = SciverseAdapter(token="dummy")
+        ad._client = MagicMock()
+        hits = [{"title": "Review paper", "chunk": self.REVIEW, "doi": "10.1000/r",
+                 "abstract": "", "score": 0.99},          # API 分最高但无数值
+                {"title": "Data paper", "chunk": self.DENSE, "doi": "10.1000/d",
+                 "abstract": "", "score": 0.90}]          # 数值密集
+        ad._client.semantic_search.return_value = {"hits": hits}
+        out = ad.search_sync("Bi2Te3 zT values", top_k=1)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["doi"], "10.1000/d")     # 数值密集段胜出
+        self.assertNotIn("_density", out[0])             # 内部字段不外泄
+
+
 if __name__ == "__main__":
     unittest.main()

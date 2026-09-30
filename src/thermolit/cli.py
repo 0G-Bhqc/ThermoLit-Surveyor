@@ -144,6 +144,7 @@ def main() -> int:
             "doi_check": doi_check,
             "doi_warnings": state.get("doi_warnings", []),
             "error_records": state.get("error_records", []),
+            "papers": state.get("all_papers", []),
             "metrics": metrics,
         }, f, ensure_ascii=False, indent=2)
     print(f"[Output] 结构化 JSON(含物理审计): {args.output_json}")
