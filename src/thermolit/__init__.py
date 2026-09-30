@@ -14,7 +14,7 @@ from thermolit.hypothesis import evaluate_hypotheses
 from thermolit.profiles.base import DomainProfile
 from thermolit.profiles.thermoelectric import THERMOELECTRIC_PROFILE
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = ["DomainProfile", "THERMOELECTRIC_PROFILE", "build_survey_app",
            "evaluate_hypotheses", "run_agent", "__version__"]

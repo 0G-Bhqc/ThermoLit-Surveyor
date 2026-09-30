@@ -56,7 +56,7 @@ from thermolit.hypothesis import normalize_experiment_plan, normalize_hypotheses
 from thermolit.json_utils import extract_json, with_retries
 from thermolit.profiles.base import DomainProfile
 from thermolit.profiles.thermoelectric import THERMOELECTRIC_PROFILE
-from thermolit.schemas import validate_extraction
+from thermolit.schemas import check_evidence, validate_extraction
 
 logger = logging.getLogger("thermolit")
 
@@ -174,6 +174,8 @@ def _extract_one(llm: Any, paper: Dict[str, Any], profile: DomainProfile) -> Dic
         if err:
             raise ValueError(f"extraction schema validation failed after retry: {err}")
     data = normalized
+    # P0-2:证据句包含校验——摘录必须真实存在于原文,否则标记为未核实
+    data["evidence_check"] = check_evidence(data, paper["text"])
     data["title"] = paper.get("title", "")
     data["doi"] = paper.get("doi", "N/A")
     data["query_source"] = paper.get("query_source", "")

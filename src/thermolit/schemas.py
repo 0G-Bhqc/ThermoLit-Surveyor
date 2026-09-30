@@ -53,3 +53,25 @@ def validate_extraction(data: object) -> tuple[Optional[dict], Optional[str]]:
                             for err in e.errors()[:5])
         return None, f"schema 校验失败({len(e.errors())} 处): {details}"
     return record.model_dump(), None
+
+
+def _norm_ws(text: str) -> str:
+    return " ".join(str(text).split())
+
+
+def check_evidence(data: dict, excerpt: str) -> Dict[str, list]:
+    """
+    证据句包含校验(P0-2):每条 evidence_sentences 的摘录必须(空白归一后)
+    真实存在于原文 excerpt 中,否则归入 unverified——防止 LLM 编造"看起来像原文"的句子。
+    返回 {"verified": [字段名], "unverified": [字段名]}。
+    """
+    src = _norm_ws(excerpt)
+    verified, unverified = [], []
+    for field, quote in (data.get("evidence_sentences") or {}).items():
+        if not quote:
+            continue
+        if _norm_ws(quote) in src:
+            verified.append(field)
+        else:
+            unverified.append(field)
+    return {"verified": verified, "unverified": unverified}

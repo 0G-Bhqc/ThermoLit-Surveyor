@@ -33,6 +33,12 @@ EXTRACTION_SCHEMA_PROMPT = """Extract thermoelectric transport parameters from t
 }
 Rules:
 - Copy values verbatim from the excerpt WITH their original units. Never convert, never infer.
+- If the excerpt states a temperature for a specific value, APPEND it to that value string
+  (e.g. seebeck_coefficient: "+450 uV/K @ 300 K"). Different fields may have DIFFERENT
+  temperatures - keep each value's own temperature.
+- temperature_k is the transport measurement temperature (Seebeck/conductivity/thermal
+  conductivity), NOT the zT temperature when they differ; if only a zT temperature is
+  stated, leave temperature_k null and append "@ T" to zT_value only.
 - If a parameter is not explicitly stated in the excerpt, use null. Do NOT guess.
 - For EVERY non-null parameter, evidence_sentences must contain its verbatim supporting sentence
   (quote exactly, do not paraphrase). Never fabricate a sentence that is not in the excerpt.

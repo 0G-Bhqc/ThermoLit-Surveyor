@@ -117,12 +117,12 @@ def parse_kappa(raw: Any) -> Optional[float]:
     if v is None:
         return None
     low = t.lower()
-    if re.search(r"(?<![a-z])m\s*w\s*[·./]?\s*c\s*m", low):
+    if re.search(r"(?<![a-z])m\s*w[\s·./()]*c[\s·./()]*m", low):
         return v * 0.1  # mW/cmK -> W/mK
-    if re.search(r"w\s*[·./]?\s*c\s*m", low):
+    if re.search(r"w[\s·./()]*c[\s·./()]*m", low):
         return v * 100.0  # W/cmK -> W/mK
-    if re.search(r"w\s*[·./]?\s*m", low):
-        return v  # W/mK
+    if re.search(r"w[\s·./()]*m", low):
+        return v  # W/mK(含 W/(m·K) 括号写法)
     return None
 
 
@@ -146,6 +146,25 @@ def parse_temperature(record: Dict[str, Any]) -> Optional[float]:
         m = re.search(r"@\s*(\d{2,4})\s*k\b", _normalize(raw), re.IGNORECASE)
         if m:
             return float(m.group(1))
+    return None
+
+
+def parse_field_temperature(raw: Any) -> Optional[float]:
+    """
+    单字段自己的温度:识别 "@ 350 K"、"at 350 K"、"room temperature/RT"。
+    这是 P0 修复的核心:不同字段可能在不同温度下测得(如 S@300K、zT@923K),
+    统一用一个 T 参与派生计算会造成跨字段温度错配。
+    """
+    if raw is None:
+        return None
+    t = _normalize(str(raw))
+    m = re.search(r"(?:@|\bat)\s*(\d{2,4})\s*k\b", t, re.IGNORECASE)
+    if m:
+        v = float(m.group(1))
+        if 2 <= v <= 2000:
+            return v
+    if re.search(r"room\s*temp|(^|\W)rt(\W|$)", t, re.IGNORECASE):
+        return ROOM_TEMPERATURE_K
     return None
 
 
@@ -191,19 +210,27 @@ def fmt(value: Optional[float], digits: int = 3) -> str:
 # ---------------------------------------------------------------- 单条记录物理审计
 def audit_record(record: Dict[str, Any]) -> Dict[str, Any]:
     """
-    对单条抽取记录执行物理解耦与一致性校验。
+    对单条抽取记录执行物理解耦与一致性校验(逐字段温度感知)。
 
     返回字段:
       S_si / sigma_si / kappa_si / T_K / zT_reported:解析后的 SI 值(缺失为 None)
-      lorenz_used / kappa_e / kappa_l / zT_calc:派生物理量(缺失为 None)
-      flags:物理解析/一致性标记
+      T_S / T_sigma / T_kappa / T_zT:各字段自己的温度(P0 修复:跨字段可能不同)
+      lorenz_used / kappa_e / kappa_l / zT_calc:派生物理量(缺失为 None;
+        zT_calc 仅在 S/σ/κ 同温时计算,κ_l 仅在 σ/κ 同温时计算)
+      flags:物理解析/一致性/温度混计/证据未核实标记
       missing:未能解析的规范参数名(驱动 Pass 2 缺口检索)
     """
     s_si = parse_seebeck(record.get("seebeck_coefficient"))
     sigma_si = parse_sigma(record.get("electrical_conductivity"))
     kappa_si = parse_kappa(record.get("thermal_conductivity"))
     zt_rep = parse_zt(record.get("zT_value"))
-    t_k = parse_temperature(record) or ROOM_TEMPERATURE_K
+
+    base_t = record.get("temperature_k")
+    base_t = float(base_t) if isinstance(base_t, (int, float)) and 2 <= base_t <= 2000 else None
+    t_s = parse_field_temperature(record.get("seebeck_coefficient")) or base_t
+    t_sigma = parse_field_temperature(record.get("electrical_conductivity")) or base_t
+    t_kappa = parse_field_temperature(record.get("thermal_conductivity")) or base_t
+    t_zt = parse_field_temperature(record.get("zT_value")) or base_t
 
     flags: List[str] = []
     missing: List[str] = []
@@ -217,11 +244,23 @@ def audit_record(record: Dict[str, Any]) -> Dict[str, Any]:
     if zt_rep is None:
         missing.append("zT_value")
 
+    # 派生计算仅在输运值同温时进行;跨字段混温 → 标记并拒绝计算(P0-1)
+    known_temps = [t for t in (t_s, t_sigma, t_kappa) if t is not None]
+    mixed = len(set(known_temps)) > 1
+    calc_t = known_temps[0] if known_temps else (base_t or ROOM_TEMPERATURE_K)
+
     lorenz = lorenz_from_seebeck(s_si)
-    kappa_e = lorenz * sigma_si * t_k if sigma_si is not None else None
-    kappa_l = (kappa_si - kappa_e) if (kappa_si is not None and kappa_e is not None) else None
-    zt_calc = (zT_from_components(s_si, sigma_si, t_k, kappa_si)
-               if all(v is not None for v in (s_si, sigma_si, kappa_si)) else None)
+    eff_sigma_t = t_sigma or calc_t
+    kappa_e = lorenz * sigma_si * eff_sigma_t if sigma_si is not None else None
+    kappa_l = (kappa_si - kappa_e) \
+        if (kappa_si is not None and kappa_e is not None
+            and (t_kappa or eff_sigma_t) == (t_sigma or eff_sigma_t)) else None
+    zt_calc = None
+    if all(v is not None for v in (s_si, sigma_si, kappa_si)) and not mixed:
+        zt_calc = zT_from_components(s_si, sigma_si, calc_t, kappa_si)
+    if mixed:
+        detail = "/".join(f"{t:.0f}K" for t in known_temps)
+        flags.append(f"字段温度混计({detail}),跨温派生量已拒绝计算")
 
     if kappa_l is not None and kappa_l <= 0:
         flags.append("kappa_l_negative(Lorenz过高或抽取单位有误)")
@@ -229,9 +268,15 @@ def audit_record(record: Dict[str, Any]) -> Dict[str, Any]:
         flags.append("kappa_l低于非晶下限(粗筛,待核)")
 
     if zt_calc is not None and zt_rep is not None and zt_rep > 0:
-        rel = abs(zt_calc - zt_rep) / zt_rep
-        if rel > ZT_MISMATCH_TOLERANCE:
-            flags.append(f"zT不一致(计算{zt_calc:.2f} vs 报道{zt_rep:.2f},偏差{rel:.0%})")
+        if t_zt is not None and t_zt != calc_t:
+            flags.append(f"zT报道温度({t_zt:.0f}K)与计算温度({calc_t:.0f}K)不一致,未做偏差判定")
+        else:
+            rel = abs(zt_calc - zt_rep) / zt_rep
+            if rel > ZT_MISMATCH_TOLERANCE:
+                flags.append(f"zT不一致(计算{zt_calc:.2f} vs 报道{zt_rep:.2f},偏差{rel:.0%})")
+    elif zt_rep is not None and t_zt is not None and known_temps \
+            and t_zt != calc_t:
+        flags.append(f"zT报道@{t_zt:.0f}K(与输运值温度{calc_t:.0f}K不同)")
 
     # 字段有文本但解析失败 → 单位/写法问题,标记出来供人工复核
     _FIELD_OF = {"seebeck": ("seebeck_coefficient", s_si),
@@ -241,6 +286,12 @@ def audit_record(record: Dict[str, Any]) -> Dict[str, Any]:
         if record.get(record_field) and parsed is None:
             flags.append(f"{record_field}字段存在但无法解析(单位/写法)")
 
+    # 证据句包含校验结果透传为标记(P0-2,由 schemas.check_evidence 在抽取时判定)
+    ev = record.get("evidence_check") or {}
+    if ev.get("unverified"):
+        flags.append(f"证据句未核实({len(ev['unverified'])}条): {', '.join(ev['unverified'])}")
+
+    t_k_out = known_temps[0] if known_temps else (t_zt or base_t or ROOM_TEMPERATURE_K)
     return {
         "title": record.get("title", ""),
         "doi": record.get("doi", "N/A"),
@@ -248,7 +299,11 @@ def audit_record(record: Dict[str, Any]) -> Dict[str, Any]:
         "S_si_V_per_K": s_si,
         "sigma_si_S_per_m": sigma_si,
         "kappa_si_W_per_mK": kappa_si,
-        "T_K": t_k,
+        "T_K": t_k_out,
+        "T_S": t_s,
+        "T_sigma": t_sigma,
+        "T_kappa": t_kappa,
+        "T_zT": t_zt,
         "zT_reported": zt_rep,
         "zT_calc": zt_calc,
         "lorenz_used": lorenz if sigma_si is not None else None,
