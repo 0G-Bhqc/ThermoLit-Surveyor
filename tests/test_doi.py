@@ -121,8 +121,9 @@ class TestCrossrefResolution(unittest.TestCase):
 
     def test_sanitize_title_unescapes_entities(self):
         from thermolit.adapter import sanitize_title
+        # 标签剥离为空格:对 Crossref query.title 检索等效,不残留任何标记
         self.assertEqual(sanitize_title("p-type (bi&lt;sub&gt;2&lt;/sub&gt;te&lt;sub&gt;3"),
-                         "p-type (bi2te3")
+                         "p-type (bi 2 te 3")
 
 
 if __name__ == "__main__":
