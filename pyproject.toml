@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "thermolit-surveyor"
+version = "0.5.0"
+description = "Gap-driven, physics-constrained research-loop agent framework (LangGraph + Sciverse): survey -> structured falsifiable hypotheses -> experiment design -> deterministic result verification. Pluggable domain profiles, first: thermoelectric transport"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "ThermoLit-Surveyor contributors" }]
+keywords = ["literature-survey", "agent", "langgraph", "thermoelectric",
+            "physics-constrained", "neuro-symbolic", "sciverse"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+  "langgraph==1.2.10",
+  "langchain==1.3.14",
+  "langchain-openai==1.4.1",
+  "sciverse==0.13.1",
+  "python-dotenv>=1.0",
+  "pydantic==2.12.4",
+  "requests==2.32.5",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.6", "httpx>=0.27"]
+export = ["python-docx>=1.1"]
+server = ["fastapi>=0.115", "uvicorn>=0.30"]
+checkpoint = ["langgraph-checkpoint-sqlite>=2"]
+ui = ["gradio>=5.0"]
+
+[project.scripts]
+thermolit = "thermolit.cli:main"
+
+[project.urls]
+Repository = "https://github.com/0G-Bhqc/ThermoLit-Surveyor"
+Roadmap = "https://github.com/0G-Bhqc/ThermoLit-Surveyor/blob/main/ROADMAP.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/thermolit"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+# I = isort:统一导入顺序;首次启用已全量修复

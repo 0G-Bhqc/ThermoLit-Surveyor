@@ -1,0 +1,26 @@
+site_name: ThermoLit-Surveyor
+site_description: 缺口驱动、物理约束的研究闭环智能体框架
+repo_url: https://github.com/0G-Bhqc/ThermoLit-Surveyor
+repo_name: 0G-Bhqc/ThermoLit-Surveyor
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - scheme: default
+      primary: deep purple
+  features:
+    - content.code.copy
+    - navigation.sections
+
+nav:
+  - 首页: index.md
+  - 使用指南: usage.md
+  - 领域 Profile 开发: profiles.md
+  - HTTP 服务与部署: api.md
+  - 评测体系: eval.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - tables

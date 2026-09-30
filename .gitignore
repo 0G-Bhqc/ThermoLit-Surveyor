@@ -18,3 +18,12 @@ ENV/
 *.log
 *.tmp
 *.docx
+
+# Build artifacts
+dist/
+*.egg-info/
+.ruff_cache/
+build/
+
+# Eval results
+eval/results/

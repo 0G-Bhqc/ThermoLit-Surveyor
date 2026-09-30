@@ -1,0 +1,18 @@
+{
+  "summary": "Grow/prepare a three-system sample matrix (SPS Bi0.3Sb1.7Te3 doping series, Na-doped PbTe, SnSe b-axis crystals), characterize full transport from 300 K to above 900 K, and feed every result into the programmatic hypothesis verifier.",
+  "samples": [
+    "Bi0.3Sb1.7Te3 SPS pellets, melt-spun vs. gently ground powders, annealed 753 K",
+    "Bi2Te3 melt-spun ribbons, annealing series 673-813 K",
+    "Na-doped PbTe single crystals, Na 0.5-2.0 at.%",
+    "SnSe single crystals, b-axis oriented, carrier-tuned 1e17-1e19 cm-3"
+  ],
+  "measurements": [
+    {"target_var": "S", "technique": "Seebeck coefficient measurement system (steady-state, 4-probe geometry)", "T_range_K": [300, 800]},
+    {"target_var": "sigma", "technique": "four-probe AC conductivity (van der Pauw)", "T_range_K": [300, 800]},
+    {"target_var": "kappa", "technique": "laser flash diffusivity + DSC specific heat + density", "T_range_K": [300, 973]},
+    {"target_var": "kappa_l", "technique": "laser flash total kappa with Wiedemann-Franz electronic subtraction (kappa_e = L*sigma*T)", "T_range_K": [300, 973]},
+    {"target_var": "zT", "technique": "combined S-sigma-kappa synthesis on PPMS/LFA setup", "T_range_K": [300, 800]},
+    {"target_var": "n", "technique": "Hall effect measurement", "T_range_K": [300, 500]}
+  ],
+  "hypothesis_refs": ["H1", "H2", "H3", "H4", "H5"]
+}

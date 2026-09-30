@@ -1,0 +1,32 @@
+[
+  {
+    "statement": "Nanostructured or melt-spun Bi-Sb-Te systems sustain zT >= 1.1 at 350 K.",
+    "criteria": [{"var": "zT", "op": ">=", "value": 1.1, "T_K": 350}],
+    "evidence_dois": ["10.0000/smoke.001", "10.0000/smoke.005"],
+    "rationale": "Both SPS-nanostructured Bi0.3Sb1.7Te3 (zT 1.2) and melt-spun Bi2Te3 (zT 0.95) cluster near zT 1.0-1.2 at 350 K; the decoupling threshold separates texture-driven from intrinsic performance."
+  },
+  {
+    "statement": "Lattice thermal conductivity of nanostructured BiSbTe at 350 K falls below 0.60 W/mK after Wiedemann-Franz decoupling.",
+    "criteria": [{"var": "kappa_l", "op": "<", "value": 0.6, "T_K": 350}],
+    "evidence_dois": ["10.0000/smoke.001", "10.0000/smoke.005"],
+    "rationale": "Deterministic WF decoupling of both records yields kappa_l 0.56-0.53 W/mK, consistent with intensified boundary scattering in nanostructured microstructures."
+  },
+  {
+    "statement": "Na-doped PbTe retains sigma >= 1.0e5 S/m up to 750 K so that the reported zT 1.4 is achieved without carrier collapse.",
+    "criteria": [{"var": "zT", "op": ">=", "value": 1.4, "T_K": 750}, {"var": "sigma", "op": ">=", "value": 100000, "T_K": 300}],
+    "evidence_dois": ["10.0000/smoke.002"],
+    "rationale": "The excerpt reports zT 1.4 @ 750 K but room-temperature transport only; the audit flags a 48% zT mismatch at 300 K, so high-temperature sigma retention is the decisive unverified link."
+  },
+  {
+    "statement": "SnSe b-axis room-temperature electrical conductivity is below 10 S/m, limiting near-RT zT despite very high Seebeck coefficient.",
+    "criteria": [{"var": "sigma", "op": "<", "value": 10}],
+    "evidence_dois": ["10.0000/smoke.004"],
+    "rationale": "Reported sigma 0.09 S/cm (= 9 S/m) with S = +450 uV/K gives a large power factor penalty at 300 K."
+  },
+  {
+    "statement": "SnSe lattice thermal conductivity stays below 0.35 W/mK up to 973 K along the b axis.",
+    "criteria": [{"var": "kappa_l", "op": "<", "value": 0.35, "T_K": 973}],
+    "evidence_dois": ["10.0000/smoke.003", "10.0000/smoke.004"],
+    "rationale": "The 0.23 W/mK lattice value at 973 K is reported only as kappa_l; total kappa has not been extracted, so the claim awaits total-kappa measurement to be decoupled programmatically."
+  }
+]
