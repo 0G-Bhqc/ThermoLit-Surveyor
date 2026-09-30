@@ -10,6 +10,10 @@
 
 **Why it is different**: generic DeepResearch agents stop at a written report, and let the LLM freely generate its numbers — unauditable. ThermoLit-Surveyor (1) computes `κ_e = L·σ·T` (Wiedemann-Franz, Seebeck-adaptive Lorenz number), `κ_l = κ_tot − κ_e`, and `zT_calc = S²σT/κ` in deterministic code and injects this *Physics Audit Table* as the single numeric ground truth; (2) turns "H1–H5 hypotheses" into **structured objects** (canonical SI variables + numeric thresholds) that a program can verify; (3) closes the loop: after the lab runs, `thermolit --verify` programmatically judges each hypothesis and refluxes missing variables into the next survey's gap queries.
 
+> **适用边界 / Where it applies**: which research domains, task types and evidence types
+> this workflow covers — and where it should NOT be used — see
+> [Boundaries & Positioning](docs/boundaries.md)(适用边界与定位,含科研领域清单与真实案例).
+
 ---
 
 ## 🌟 Key Architecture & Highlights

@@ -15,6 +15,7 @@ theme:
 
 nav:
   - 首页: index.md
+  - 适用边界与定位: boundaries.md
   - 使用指南: usage.md
   - 领域 Profile 开发: profiles.md
   - HTTP 服务与部署: api.md
