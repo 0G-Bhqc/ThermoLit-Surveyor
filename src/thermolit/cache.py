@@ -26,6 +26,11 @@ class ResultCache:
     def __init__(self, path: str):
         self.path = path
         self._lock = threading.Lock()
+        from pathlib import Path
+
+        parent = Path(path).parent
+        if str(parent) not in ("", "."):
+            parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(path, check_same_thread=False)
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS cache (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
@@ -71,11 +76,6 @@ def get_global_cache() -> Optional[ResultCache]:
     if not THERMOLIT_CACHE:
         return None
     if _global_cache is None or _global_cache_path != THERMOLIT_CACHE:
-        from pathlib import Path
-
-        parent = Path(THERMOLIT_CACHE).parent
-        if str(parent) not in ("", "."):
-            parent.mkdir(parents=True, exist_ok=True)
         _global_cache = ResultCache(THERMOLIT_CACHE)
         _global_cache_path = THERMOLIT_CACHE
     return _global_cache
