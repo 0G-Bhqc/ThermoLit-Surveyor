@@ -91,10 +91,16 @@ def main() -> int:
     print(f"[ThermoLit-Surveyor] 开始调研: '{args.query}' "
           f"(profile={args.profile}, top_k={args.top_k}, followup={args.followup}, "
           f"doi_check={not args.no_doi_check})")
-    state = run_agent(args.query, profile=PROFILES[args.profile],
-                      top_k=args.top_k, num_followup=args.followup,
-                      check_dois=not args.no_doi_check,
-                      checkpoint_path=args.checkpoint)
+    try:
+        state = run_agent(args.query, profile=PROFILES[args.profile],
+                          top_k=args.top_k, num_followup=args.followup,
+                          check_dois=not args.no_doi_check,
+                          checkpoint_path=args.checkpoint)
+    except Exception as e:  # 顶层兜底:LLM 端点/网络瞬时故障给出可读错误而非裸栈
+        print(f"[ThermoLit-Surveyor] 调研失败: {type(e).__name__}: {e}", file=sys.stderr)
+        print("[ThermoLit-Surveyor] 提示: 多为 LLM 端点瞬时故障,可直接重试"
+              "(可先配置 THERMOLIT_CACHE 使已完成的检索/抽取不重复消耗)", file=sys.stderr)
+        return 1
 
     metrics = state.get("metrics", {})
     duration = metrics.get("total_pipeline_duration", 0)

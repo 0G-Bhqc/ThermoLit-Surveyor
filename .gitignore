@@ -19,6 +19,11 @@ ENV/
 *.tmp
 *.docx
 
+# Survey outputs (default CLI paths; may contain user-specific run data)
+deepresearch_multihop_report.md
+deepresearch_all_records.json
+*_verification.json
+
 # Build artifacts
 dist/
 *.egg-info/

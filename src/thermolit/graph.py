@@ -227,9 +227,11 @@ def _update_material_system(state: Dict[str, Any], records: List[dict]) -> str:
 
 
 def build_evidence_table_md(papers: List[Dict[str, Any]]) -> str:
-    header = "| # | Title | DOI | Pass | 来源查询 |\n|---|---|---|---|---|"
-    rows = [f"| {i} | {p['title'][:60]} | {p.get('doi', 'N/A')} | {p.get('source_pass', '?')} "
-            f"| {str(p.get('query_source', ''))[:50]} |"
+    header = ("| # | Title | DOI | 年份 | 期刊 | Pass | 来源查询 |\n"
+              "|---|---|---|---|---|---|---|")
+    rows = [f"| {i} | {p['title'][:55]} | {p.get('doi', 'N/A')} "
+            f"| {p.get('year', '') or '—'} | {str(p.get('venue', ''))[:28] or '—'} "
+            f"| {p.get('source_pass', '?')} | {str(p.get('query_source', ''))[:40]} |"
             for i, p in enumerate(papers, 1)]
     return "\n".join([header] + rows) if rows else header + "\n|(无)|"
 
@@ -377,9 +379,12 @@ Return ONLY a valid JSON array of {n} strings."""
         logger.info("[Pass 2] 抽取 %s 篇(跳过 %s 篇 Pass 1 已抽取)",
                     len(fresh), len(state.get("pass2_papers", [])) - len(fresh))
         records, errors = _batch_extract(fresh, pass_num=2, profile=profile)
-        all_records = state.get("pass1_records", []) + records
+        # 真实校准发现:不同查询常命中同一文献的不同段落,记录层必须与检索层同规则去重
+        all_records = dedup_papers(state.get("pass1_records", []) + records)
+        skipped = (len(state.get("pass1_records", [])) + len(records)) - len(all_records)
         metrics = dict(state.get("metrics", {}))
-        metrics.update(pass2_extract_time=time.time() - start)
+        metrics.update(pass2_extract_time=time.time() - start,
+                       duplicate_records_skipped=skipped)
         return {"pass2_records": records, "all_records": all_records,
                 "error_records": state.get("error_records", []) + errors,
                 "metrics": metrics}

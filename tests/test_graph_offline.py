@@ -180,5 +180,45 @@ class TestSciverseIntegration(unittest.TestCase):
         self.assertIn("doi", results[0])
 
 
+class TestRecordDedup(unittest.TestCase):
+    """真实校准发现:不同查询命中同一文献时,记录层必须去重(与检索层同规则)。"""
+
+    def test_duplicate_records_across_passes(self):
+        try:
+            from thermolit import graph as proto  # noqa: F401
+        except Exception as e:  # langgraph 不可用时跳过
+            self.skipTest(f"graph deps unavailable: {e}")
+
+        record = json.dumps({"material_system": "Bi2Te3", "zT_value": "0.9 @ 350 K",
+                             "seebeck_coefficient": "-180 uV/K",
+                             "electrical_conductivity": "1200 S/cm",
+                             "thermal_conductivity": "1.3 W/mK",
+                             "temperature_k": 350, "key_claim": "x"})
+        fake_llm = FakeLLM([record] * 3)
+
+        class SameDoiAdapter(FakeAdapter):
+            """pass2 返回同 DOI、不同标题(不同段落)的命中——
+            论文层 (doi,title) 去重失效的场景,记录层去重必须兜底。"""
+
+            def __init__(self):
+                super().__init__()
+                self.n = 0
+
+            def _hits(self, query, pass_num):
+                self.n += 1
+                suffix = "" if self.n == 1 else f" (variant {self.n})"
+                return [{"title": f"Same Paper{suffix}", "doi": "10.99/same",
+                         "text": "zT = 0.9 @ 350 K, S = -180 uV/K, "
+                                 "sigma = 1200 S/cm, kappa = 1.3 W/mK.",
+                         "query_source": query, "source_pass": pass_num}]
+
+        with patch.object(proto, "_make_llm", return_value=fake_llm), \
+             patch.object(proto, "get_adapter", return_value=SameDoiAdapter()):
+            state = proto.run_agent("Bi2Te3 dedup", top_k=1, num_followup=2,
+                                    check_dois=False)
+        self.assertEqual(len(state["all_records"]), 1)   # 3 次抽取 → 1 条记录
+        self.assertGreaterEqual(state["metrics"].get("duplicate_records_skipped", 0), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

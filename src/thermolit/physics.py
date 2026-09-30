@@ -247,7 +247,8 @@ def audit_record(record: Dict[str, Any]) -> Dict[str, Any]:
     # 派生计算仅在输运值同温时进行;跨字段混温 → 标记并拒绝计算(P0-1)
     known_temps = [t for t in (t_s, t_sigma, t_kappa) if t is not None]
     mixed = len(set(known_temps)) > 1
-    calc_t = known_temps[0] if known_temps else (base_t or ROOM_TEMPERATURE_K)
+    # 回落链:输运字段温度 → zT 温度(同一测试通常同温)→ temperature_k → 300K
+    calc_t = known_temps[0] if known_temps else (t_zt or base_t or ROOM_TEMPERATURE_K)
 
     lorenz = lorenz_from_seebeck(s_si)
     eff_sigma_t = t_sigma or calc_t

@@ -72,5 +72,43 @@ class TestCheckDois(unittest.TestCase):
         self.assertEqual(summary["unknown"], [])
 
 
+class TestCrossrefResolution(unittest.TestCase):
+    """Crossref 标题→DOI 解析(真实命中无 DOI 字段的锚点修复)。"""
+
+    def _mock(self, status=200, doi="10.1000/real", title="Key Properties of Inorganic Thermoelectric Materials"):
+        m = MagicMock()
+        m.status_code = status
+        m.json.return_value = {"message": {"items": [{"DOI": doi, "title": [title]}]}}
+        return m
+
+    @patch("requests.get")
+    def test_similar_title_resolved(self, mock_get):
+        from thermolit.adapter import resolve_doi_by_title
+        mock_get.return_value = self._mock()
+        out = resolve_doi_by_title("key properties of inorganic thermoelectric materials tables")
+        self.assertEqual(out, "10.1000/real")
+
+    @patch("requests.get")
+    def test_dissimilar_title_rejected(self, mock_get):
+        from thermolit.adapter import resolve_doi_by_title
+        mock_get.return_value = self._mock(title="Completely Unrelated Paper About Biology")
+        self.assertIsNone(resolve_doi_by_title("PbTe thermoelectric transport"))
+
+    @patch("requests.get")
+    def test_http_error_returns_none(self, mock_get):
+        from thermolit.adapter import resolve_doi_by_title
+        mock_get.return_value = self._mock(status=500)
+        self.assertIsNone(resolve_doi_by_title("some title"))
+
+    @patch("requests.get", side_effect=doi_mod.requests.ConnectionError())
+    def test_network_error_returns_none(self, mock_get):
+        from thermolit.adapter import resolve_doi_by_title
+        self.assertIsNone(resolve_doi_by_title("some title"))
+
+    def test_empty_title_short_circuit(self):
+        from thermolit.adapter import resolve_doi_by_title
+        self.assertIsNone(resolve_doi_by_title(""))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -54,6 +54,18 @@ class TestFieldTemperature(unittest.TestCase):
         self.assertAlmostEqual(a["zT_calc"], 0.9, places=2)
         self.assertFalse(any("温度混计" in f for f in a["flags"]))
 
+    def test_calc_temp_falls_back_to_zT_temp(self):
+        # 真实校准发现:LLM 只在 zT 带温度时,输运值温度应回落到 zT 温度,
+        # 而不是错误回落到 300K 造成"报道350K vs 计算300K"的假不一致
+        rec = {"seebeck_coefficient": "-190 uV/K",
+               "electrical_conductivity": "1100 S/cm",
+               "thermal_conductivity": "1.2 W/mK",
+               "zT_value": "0.95 @ 350 K", "doi": "d", "title": "t"}
+        a = physics.audit_record(rec)
+        self.assertEqual(a["T_K"], 350.0)
+        self.assertAlmostEqual(a["zT_calc"], 1.158, places=2)  # @350K 计算
+        self.assertFalse(any("温度不一致" in f for f in a["flags"]))
+
 
 class TestUnitLongTail(unittest.TestCase):
     def test_kappa_parenthesized(self):

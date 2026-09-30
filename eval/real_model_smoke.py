@@ -130,18 +130,20 @@ def main() -> int:
     from thermolit import graph as proto
     from thermolit.profiles.thermoelectric import THERMOELECTRIC_PROFILE
 
+    out: dict = {}
     if args.live:
-        llm = proto._make_llm()
+        # LIVE:不 patch _make_llm——让 tracker/cache 包装链真实生效(token 计量可用)
         print(f"[smoke] LIVE 模式:{LLM_MODEL_NAME()} @ {LLM_BASE_NAME()}")
+        with _patch(proto, "get_adapter", lambda: FixtureAdapter()):
+            state = proto.run_agent(INITIAL_QUERY, profile=THERMOELECTRIC_PROFILE,
+                                    top_k=3, num_followup=2, check_dois=False)
     else:
         llm = ReplayLLM(args.replay_dir)
         print(f"[smoke] REPLAY 模式:{len(llm.extractions)} 份抽取回放 @ {args.replay_dir}")
-
-    out: dict = {}
-    with _patch(proto, "_make_llm", lambda: llm), \
-         _patch(proto, "get_adapter", lambda: FixtureAdapter()):
-        state = proto.run_agent(INITIAL_QUERY, profile=THERMOELECTRIC_PROFILE,
-                                top_k=3, num_followup=2, check_dois=False)
+        with _patch(proto, "_make_llm", lambda: llm), \
+             _patch(proto, "get_adapter", lambda: FixtureAdapter()):
+            state = proto.run_agent(INITIAL_QUERY, profile=THERMOELECTRIC_PROFILE,
+                                    top_k=3, num_followup=2, check_dois=False)
 
     out["material_system"] = state["material_system"]
     out["all_records"] = state["all_records"]

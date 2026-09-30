@@ -1,24 +1,69 @@
 """
 sciverse_adapter.py — Sciverse API 适配层。
 
-改进点(相对 v0.1):
+改进点(相对 v0.1,经真实 API 校准):
   - 惰性创建客户端:导入本模块不再需要 token / sciverse 包就绪,便于测试
-  - 命中结果归一化:同时兼容 dict 与对象属性两种返回风格
-  - 带指数退避的重试;超时/失败向上传播,而不是静默返回空列表
+  - 兼容同步/异步 client(真实 sciverse 0.13.x 的 semantic_search 为 async)
+  - 真实命中无 DOI 字段:通过 Crossref 标题→DOI 解析补齐证据锚点
+    (difflib 相似度阈值防错配;失败保留 N/A,不阻塞检索主流程)
+  - 命中结果归一化:dict/对象属性两种风格;保留 venue/year 元数据
+  - 指数退避重试;失败向上传播而不是静默返回空列表
   - 论文去重(按 DOI 优先、标题兜底)
 """
 from __future__ import annotations
 
 import asyncio
+import re
+from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
 from thermolit.config import SCIVERSE_TOKEN, is_configured
-from thermolit.json_utils import with_retries
 
 try:  # sciverse 为运行时依赖;延迟导入让单元测试可以在未安装时仍然可用
     from sciverse import AgentToolsClient
 except ImportError:  # pragma: no cover
     AgentToolsClient = None  # type: ignore[assignment]
+
+_CROSSREF_API = "https://api.crossref.org/works"
+_TITLE_SIM_THRESHOLD = 0.60
+
+
+def _norm_title(title: str) -> str:
+    return re.sub(r"[^a-z0-9 ]", "", str(title).lower()).strip()
+
+
+def resolve_doi_by_title(title: str, timeout: float = 15.0) -> Optional[str]:
+    """
+    Crossref 标题→DOI 解析(免费,无需 key)。
+    用 query.title 取 3 个候选,取相似度最高且达到阈值的——
+    防止 bibliographic 搜索返回错配论文;网络失败/无匹配返回 None(不阻塞流程)。
+    """
+    import requests
+
+    if not title or not title.strip():
+        return None
+    try:
+        resp = requests.get(
+            _CROSSREF_API,
+            params={"query.title": title, "rows": 3,
+                    "select": "DOI,title", "mailto": "thermolit-surveyor"},
+            timeout=timeout)
+        if resp.status_code != 200:
+            return None
+        items = (resp.json().get("message") or {}).get("items") or []
+        norm_query = _norm_title(title)
+        best_doi, best_sim = None, 0.0
+        for item in items:
+            doi = str(item.get("DOI", "") or "").strip()
+            crossref_title = " ".join(item.get("title") or [])
+            sim = SequenceMatcher(None, norm_query, _norm_title(crossref_title)).ratio()
+            if doi and sim > best_sim:
+                best_doi, best_sim = doi, sim
+        if best_doi and best_sim >= _TITLE_SIM_THRESHOLD:
+            return best_doi.lower()
+        return None
+    except Exception:  # noqa: BLE001 — 解析失败不阻塞检索主流程
+        return None
 
 
 class SciverseNotConfiguredError(RuntimeError):
@@ -72,6 +117,7 @@ class SciverseAdapter:
     async def semantic_search_async(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         """对 25M+ 全文段落块做语义检索,返回标准化论文段落列表。失败时抛异常由调用方决定降级策略。
 
+        兼容同步/异步两种 client(真实 sciverse 客户端为 async);
         启用 THERMOLIT_CACHE 时按 (query, top_k) 缓存命中列表,重复调研零 API 消耗。
         """
         from thermolit.cache import get_global_cache
@@ -83,11 +129,22 @@ class SciverseAdapter:
             if cached is not None:
                 return cached
 
-        def _call():
-            return self.client.semantic_search(query=query, top_k=top_k)
-
-        res = await asyncio.to_thread(with_retries, _call, 3, 2.0,
-                                      (Exception,), f"Sciverse search '{query[:40]}'")
+        # 指数退避重试(async 版):单次失败不放弃
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                result = self.client.semantic_search(query=query, top_k=top_k)
+                if asyncio.iscoroutine(result):
+                    result = await result  # async client(真实 sciverse 0.13.x)
+                last_exc = None
+                break
+            except Exception as e:  # noqa: BLE001
+                last_exc = e
+                if attempt < 2:
+                    await asyncio.sleep(2.0 * (2 ** attempt))
+        if last_exc is not None:
+            raise last_exc
+        res = result
 
         hits = _get(res, "hits", None)
         if hits is None and isinstance(res, dict):
@@ -100,10 +157,18 @@ class SciverseAdapter:
             text = f"Chunk: {chunk}\nAbstract: {abstract}".strip()
             if not text:
                 continue
+            title = str(_get(hit, "title", "Sciverse Hit") or "Sciverse Hit")
+            doi = str(_get(hit, "doi", "N/A") or "N/A")
+            if doi in ("N/A", "", "none", "None"):
+                # 真实命中无 DOI 字段:Crossref 标题解析补齐证据锚点(失败保留 N/A)
+                resolved = resolve_doi_by_title(title)
+                doi = resolved or "N/A"
             papers.append({
-                "title": str(_get(hit, "title", "Sciverse Hit") or "Sciverse Hit"),
+                "title": title,
                 "text": text,
-                "doi": str(_get(hit, "doi", "N/A") or "N/A"),
+                "doi": doi,
+                "venue": str(_get(hit, "publication_venue_name_unified", "") or ""),
+                "year": _get(hit, "publication_published_year", ""),
                 "query_source": query,
             })
         if cache is not None:
