@@ -46,6 +46,19 @@ def _norm_title(title: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", str(title).lower()).strip()
 
 
+def sanitize_title(title: str) -> str:
+    """
+    标题净化(真实校准发现):Sciverse 标题常含 MathML/HTML 标记与实体
+    (如 <mml:math ...>、&lt;sub&gt;),会污染 Crossref 搜索、去重键与展示。
+    先反转义实体再剥离标签,压缩空白。
+    """
+    import html as _html
+
+    t = _html.unescape(str(title))
+    t = re.sub(r"<[^>]*>", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def resolve_doi_by_title(title: str, timeout: float = 15.0) -> Optional[str]:
     """
     Crossref 标题→DOI 解析(免费,无需 key)。
@@ -177,7 +190,8 @@ class SciverseAdapter:
             if not text:
                 continue
             candidates.append({
-                "title": str(_get(hit, "title", "Sciverse Hit") or "Sciverse Hit"),
+                "title": sanitize_title(str(_get(hit, "title", "Sciverse Hit")
+                                            or "Sciverse Hit")),
                 "text": text,
                 "doi": str(_get(hit, "doi", "N/A") or "N/A"),
                 "venue": str(_get(hit, "publication_venue_name_unified", "") or ""),

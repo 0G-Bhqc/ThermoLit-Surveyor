@@ -109,6 +109,21 @@ class TestCrossrefResolution(unittest.TestCase):
         from thermolit.adapter import resolve_doi_by_title
         self.assertIsNone(resolve_doi_by_title(""))
 
+    def test_sanitize_title_strips_mathml(self):
+        # 真实校准发现:APS/Sciverse 标题含 MathML,污染 Crossref 搜索与展示
+        from thermolit.adapter import sanitize_title
+        dirty = ("valence-band structure of highly efficient<mml:math xmlns:mml="
+                 '"http://www.w3.org/1998/Math/MathML"><mml:mrow>p-type</mml:mrow'
+                 "></mml:math> thermoelectric pbte")
+        clean = sanitize_title(dirty)
+        self.assertNotIn("<", clean)
+        self.assertIn("p-type thermoelectric pbte", clean)
+
+    def test_sanitize_title_unescapes_entities(self):
+        from thermolit.adapter import sanitize_title
+        self.assertEqual(sanitize_title("p-type (bi&lt;sub&gt;2&lt;/sub&gt;te&lt;sub&gt;3"),
+                         "p-type (bi2te3")
+
 
 if __name__ == "__main__":
     unittest.main()
